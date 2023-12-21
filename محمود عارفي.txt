@@ -1,0 +1,888 @@
+import 'dart:math';
+
+import 'package:flutter/cupertino.dart';
+import 'package:test_first_flutter_app/connect_n_game/screen.dart';
+
+import '../services/extension.dart';
+
+void main() {
+  runApp(const WelcomeScreen());
+}
+
+class Connect4Game {
+  List<List<String>> grid = [];
+
+  // List<String> topPieceIndex = [];
+
+  int width, height, numOfPiecesToWin;
+  int fills, lastColumnPlayed = -1;
+  bool playWithBot = true, botPlayFirst = false;
+
+  bool doesItSolved = false;
+  bool isFirstPlayerTurn = true;
+
+  Connect4Game(this.width, this.height, this.numOfPiecesToWin,
+      {this.fills = 0, required this.playWithBot, this.botPlayFirst = false}) {
+    for (int row = 0; row < height; row++) {
+      List<String> row = [];
+      for (int column = 0; column < width; column++) {
+        row.add(' * ');
+      }
+      grid.add(row);
+    }
+
+    ///init topPieceIndex
+    //topPieceIndex = grid[grid.length-1];
+    if (playWithBot && botPlayFirst) {
+      botPlay();
+    }
+  }
+
+  createPatchBackUp([grid]) {
+    if (grid == null) {
+      grid == this.grid;
+    }
+    List<List<String>> patchBackUp = [];
+    for (var row in grid) {
+      List<String> help = [];
+      for (var itemInRow in row) {
+        help.add(itemInRow);
+      }
+      patchBackUp.add(help);
+    }
+    return patchBackUp;
+  }
+
+  printGridOnConsole([PrintColor color = PrintColor.pink, myGrid]) {
+    if (myGrid != null) {
+      print('');
+      for (int row = 0; row < height; row++) {
+        String help = '';
+        for (int column = 0; column < width; column++) {
+          help += myGrid[row][column];
+        }
+        colorfulPrint(help, color);
+      }
+      print('');
+      return;
+    }
+    print('');
+    for (int row = 0; row < height; row++) {
+      String help = '';
+      for (int column = 0; column < width; column++) {
+        help += grid[row][column];
+      }
+      colorfulPrint(help, color);
+    }
+    print('');
+  }
+
+  getAppropriateRowIndex(int columnToInsertInIt) {
+    int indexToInsertInIt = height - 1;
+    for (; indexToInsertInIt >= 0; indexToInsertInIt--) {
+      if (indexToInsertInIt < 0) {
+        break;
+      }
+      if (grid[indexToInsertInIt][columnToInsertInIt] == ' * ') {
+        return indexToInsertInIt;
+      }
+    }
+
+    return indexToInsertInIt;
+  }
+
+  play(int columnToInsertInIt,{bool increasePieceMode = true, secondPiecesColumn}) {
+    if (!increasePieceMode && secondPiecesColumn == null) {
+      throw ('you are try to use swap method without detect the secondPieceColumn');
+    }
+    // var nextGrid = grid ;
+    bool isChosenMovePossible = false;
+    if (increasePieceMode) {
+      HelpClass move = insertNewPiece(columnToInsertInIt);
+      if (move.isValidMove) {
+        isChosenMovePossible = true;
+        grid = move.myGrid!;
+      }
+    } else {
+      var move = swapTwoPieces(columnToInsertInIt, secondPiecesColumn);
+      if (move.isValidMove) {
+        isChosenMovePossible = true;
+        grid = move.myGrid!;
+      }
+    }
+
+    int myRowIndex = getAppropriateRowIndex(columnToInsertInIt);
+
+    doesItSolved = isWin(
+        columnIndex: columnToInsertInIt,
+        rowIndex: increasePieceMode ? myRowIndex + 1 : myRowIndex + 1);
+    colorfulPrint(myRowIndex + 1);
+
+    if (doesItSolved) {
+      colorfulPrint('it is win situation');
+    }
+    if (isChosenMovePossible) {
+      isFirstPlayerTurn = !isFirstPlayerTurn;
+      lastColumnPlayed = columnToInsertInIt;
+      if (playWithBot) {
+        botPlay();
+      }
+    }
+  }
+
+  HelpClass insertNewPiece(int columnToInsertInIt, {List<List<String>>? grid}) {
+    grid ??= this.grid;
+    int indexToInsertInIt = getAppropriateRowIndex(columnToInsertInIt);
+    if (indexToInsertInIt < 0) {
+      print('you try to insert in a fully column');
+      return HelpClass(false);
+    }
+    grid[indexToInsertInIt][columnToInsertInIt] =
+        isFirstPlayerTurn ? ' X ' : ' O ';
+    fills++;
+    //printGridOnConsole() ;
+    return HelpClass(true, grid);
+  }
+
+  HelpClass swapTwoPieces(int firstPiecesColumn, int secondPiecesColumn,[List<List<String>>? grid]) {
+    grid ??= this.grid;
+    if (firstPiecesColumn == secondPiecesColumn) {
+      print('you can\'t swap items from same column');
+      return HelpClass(false);
+    }
+    int firstPieceRow = getAppropriateRowIndex(firstPiecesColumn) + 1;
+    int secondPiecesRow = getAppropriateRowIndex(secondPiecesColumn) + 1;
+
+    if (firstPieceRow < 0 || secondPiecesRow < 0) {
+      print('for $firstPiecesColumn  column => the row will be $firstPieceRow');
+      print(
+          'for $secondPiecesColumn  column => the row will be $secondPiecesRow');
+      print('you selected empty column to swap with it ');
+      print(firstPiecesColumn);
+      print(secondPiecesColumn);
+      return HelpClass(false);
+    }
+    if (firstPieceRow == height || secondPiecesRow == height) {
+      print('you select empty column ');
+      return HelpClass(false);
+    }
+
+    String firstItem = grid[firstPieceRow][firstPiecesColumn];
+    String secondItem = grid[secondPiecesRow][secondPiecesColumn];
+    if (firstItem == secondItem) {
+      print('you are try to swap between two similar items');
+      return HelpClass(false);
+    } else if (firstItem == ' * ' || secondItem == " * ") {
+      print(
+          'until i ask m.omar you can\'t swap with empty cell f:$firstItem  s:$secondItem');
+
+      return HelpClass(false);
+    } else {
+      String backUp = firstItem;
+      grid[firstPieceRow][firstPiecesColumn] = secondItem;
+      grid[secondPiecesRow][secondPiecesColumn] = backUp;
+      print(
+          '======================swap successfully================================');
+      printGridOnConsole(PrintColor.green);
+      return HelpClass(true, grid);
+    }
+  }
+
+  bool isWinByGrid(List<List<String>> grid) {
+
+    for (int i = 0; i < width; i++) {
+      int rowIndex = getAppropriateRowIndex(i) + 1;
+      print('cl:$i row:$rowIndex');
+      try {
+        if (grid[rowIndex][i] == ' * ') {
+          continue;
+        }
+      } catch (e) {
+        continue;
+      }
+      bool result = isWin(columnIndex: i, rowIndex: rowIndex, grid: grid);
+      if (result) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool isWin({required int columnIndex, required int rowIndex, grid}) {
+    grid ??= this.grid;
+    // int rowIndex = getAppropriateRowIndex(columnIndex);
+    try {
+      if (grid[rowIndex][columnIndex] == '  *  ') {
+        throw ('there is an error you select empty cell to check win using it');
+      }
+    } catch (e) {
+      throw ('there is an error you select empty cell to check win using it \ninput=>($rowIndex:$columnIndex)\n$e');
+    }
+    if (_isWinByColumn(columnIndex: columnIndex, rowIndex: rowIndex) ||
+        _isWinByRow(columnIndex: columnIndex, rowIndex: rowIndex) ||
+        _isWinByDiameter(columnIndex: columnIndex, rowIndex: rowIndex)) {
+      printGridOnConsole(PrintColor.blue, grid);
+      return true;
+    }
+    return false;
+  }
+
+  bool _isWinByColumn({required int columnIndex, required int rowIndex}) {
+    int counter = countItemInSequenceVerticalAxis(
+        rowIndex: rowIndex, columnIndex: columnIndex);
+    return counter == numOfPiecesToWin;
+  }
+
+  bool _isWinByRow({required int columnIndex, required int rowIndex}) {
+    int counter = countItemInSequenceHorizontalAxis(
+        rowIndex: rowIndex, columnIndex: columnIndex);
+    return counter >= numOfPiecesToWin;
+  }
+
+  bool _isWinByDiameter({required int columnIndex, required int rowIndex}) {
+    //row is empty
+    if (rowIndex == height) {
+      return false;
+    }
+
+    int count = countItemInSequenceDiameterAxis(
+        columnIndex: columnIndex, rowIndex: rowIndex);
+    if (count >= numOfPiecesToWin) {
+      printGridOnConsole();
+    }
+    return (count >= numOfPiecesToWin);
+  }
+
+  List<List<List<String>>> generateAllPossibleMove([List<List<String>>? grid]) {
+    grid ??= this.grid;
+    List<List<List<String>>> resultMoves = [];
+    for (int i = 0; i < width; i++) {
+      printGridOnConsole();
+      HelpClass newMove = insertNewPiece(i, grid: createPatchBackUp(grid));
+      if (newMove.isValidMove) {
+        resultMoves.add(newMove.myGrid!);
+      }
+      printGridOnConsole();
+    }
+    print('done first step');
+    for (int i = 0; i < width; i++) {
+      for (int j = i + 1; j < width; j++) {
+        HelpClass newMove = swapTwoPieces(i, j, createPatchBackUp(grid));
+        if (newMove.isValidMove) {
+          resultMoves.add(newMove.myGrid!);
+        }
+      }
+    }
+    return resultMoves;
+  }
+
+  int evaluateAGridInOrderToMoveForIt(List<List<String>> grid, String player) {
+    List<Point> topPiece = [];
+
+    ///extract topPieces
+    for (int i = 0; i < width; i++) {
+      int rowIndex = getAppropriateRowIndex(i);
+      colorfulPrint(rowIndex);
+      if (rowIndex + 1 >= height) {
+        continue;
+      }
+      if (grid[rowIndex + 1][i] != ' * ') {
+        topPiece.add(Point(i, rowIndex + 1, player: grid[rowIndex + 1][i]));
+      }
+    }
+
+    ///show topPieces
+    for (var item in topPiece) {
+      colorfulPrint('(${item.cl}:${item.rw}) => ${grid[item.rw][item.cl]}');
+    }
+    List<int> topPieceEvaluate = [];
+
+    ///for each point count sequence item in every way
+    for (Point point in topPiece) {
+      int h = countItemInSequenceHorizontalAxis(
+          columnIndex: point.cl, rowIndex: point.rw);
+      int v = countItemInSequenceVerticalAxis(
+          columnIndex: point.cl, rowIndex: point.rw);
+      int d = countItemInSequenceDiameterAxis(
+          columnIndex: point.cl, rowIndex: point.rw);
+      topPieceEvaluate.add(max(h, max(v, d)) * numOfPiecesToWin + ((width/2).ceil() - point.cl));
+      colorfulPrint("h:$h v:$v d:$d evaluate:${topPieceEvaluate.last}", PrintColor.blue);
+    }
+    for (var item in topPieceEvaluate) {
+      colorfulPrint(item, PrintColor.orange);
+    }
+
+    int bestEvaluate = 0;
+    for (int i = 0; i < topPieceEvaluate.length; i++) {
+      if (bestEvaluate < topPieceEvaluate[i] &&
+          ((topPiece[i].player == ' X ' && botPlayFirst) ||
+              (topPiece[i].player == ' O ' && !botPlayFirst))) {
+        bestEvaluate = topPieceEvaluate[i];
+      }
+    }
+    if (botPlayFirst && player != ' X ') {
+      bestEvaluate = bestEvaluate * -1;
+    }
+    colorfulPrint('                             the rate is $bestEvaluate',PrintColor.green);
+    printGridOnConsole(PrintColor.green,grid);
+    return bestEvaluate;
+  }
+
+  int minimax(List<List<String>> position, int depth, int alpha, int beta,bool maximizingPlayer) {
+    if (depth == 0 || isWinByGrid(position))
+    {
+      return evaluateAGridInOrderToMoveForIt(position, maximizingPlayer ? ' X ' : ' O ');
+    }
+    if (maximizingPlayer) {
+      int maxEval = -99;
+      for (var child in generateAllPossibleMove(position)) {
+        int eval = minimax(child, depth - 1, alpha, beta, false);
+        maxEval = max(maxEval, eval);
+        alpha = max(alpha, eval);
+        if (beta <= alpha) {
+          break;
+        }
+        return maxEval;
+      }
+    } else {
+      int minEval = 99;
+      for (var child in generateAllPossibleMove(position)) {
+        int eval = minimax(child, depth - 1, alpha, beta, true);
+        minEval = min(minEval, eval);
+        beta = min(beta, eval);
+        if (beta <= alpha) {
+          break;
+        }
+        return minEval;
+      }
+    }
+    return 0;
+  }
+
+  botPlay() {
+    var allPossibleGrid = generateAllPossibleMove();
+
+    for(var grid in allPossibleGrid){
+      print('');
+      printGridOnConsole(PrintColor.red ,grid);
+    }
+
+    var allPossibleGridEvaluate = [];
+    for (var way in allPossibleGrid) {
+      int evaluate = minimax(way, 8, -999, 999, true);
+      colorfulPrint(' the rate of $evaluate');
+      allPossibleGridEvaluate.add(evaluate);
+    }
+    for (var item in allPossibleGridEvaluate) {
+      colorfulPrint("    $item    ", PrintColor.yellow);
+    }
+    int indexOfHeigherEvaluate = 0;
+    for (int i = 0; i < allPossibleGridEvaluate.length; i++) {
+      if (allPossibleGridEvaluate[i] >
+          allPossibleGridEvaluate[indexOfHeigherEvaluate]) {
+        indexOfHeigherEvaluate = i;
+      }
+    }
+    grid = allPossibleGrid[indexOfHeigherEvaluate];
+    isFirstPlayerTurn = !isFirstPlayerTurn;
+  }
+
+  int countItemInSequenceHorizontalAxis(
+      {required int columnIndex, required int rowIndex}) {
+    int counter = 1;
+    bool searchForward = true;
+    do {
+      String myItem = grid[rowIndex][columnIndex];
+      int i = searchForward ? columnIndex + 1 : columnIndex - 1;
+      while (i >= 0 && i < width && myItem == grid[rowIndex][i]) {
+        counter++;
+        i = searchForward ? ++i : --i;
+      }
+      searchForward = !searchForward;
+    } while (!searchForward);
+    return counter;
+  }
+
+  int countItemInSequenceVerticalAxis(
+      {required int columnIndex, required int rowIndex}) {
+    int counter = 1;
+    String myItem = grid[rowIndex][columnIndex];
+    for (int i = rowIndex + 1; i < height; i++) {
+      if (grid[i][columnIndex] == myItem) {
+        counter++;
+        continue;
+      }
+      break;
+    }
+    return counter;
+  }
+
+  int countItemInSequenceDiameterAxis(
+      {required int columnIndex, required int rowIndex}) {
+    String myItem = grid[rowIndex][columnIndex];
+    int count = 1;
+    try {
+      for (int i = 1;; i++) {
+        if (grid[rowIndex - i][columnIndex - i] == myItem) {
+          count++;
+        } else {
+          break;
+        }
+      }
+    } catch (e) {}
+    // cells after
+    try {
+      for (int i = 1;; i++) {
+        if (grid[rowIndex + i][columnIndex + i] == myItem) {
+          count++;
+        } else {
+          break;
+        }
+      }
+    } catch (e) {}
+
+    return count;
+  }
+}
+
+class HelpClass {
+  bool isValidMove;
+
+  List<List<String>>? myGrid;
+
+  HelpClass(this.isValidMove, [this.myGrid]);
+}
+
+void insertRandomPiece(Connect4Game board) {
+  bool isFirstPlayer = true;
+  for (int i = 0; i < 60 && !board.doesItSolved; i++) {
+    board.insertNewPiece(
+      Random().nextInt(board.width),
+    ); //Random().nextInt(4)+1
+    isFirstPlayer = !isFirstPlayer;
+  }
+}
+
+void swapRandomPieces(Connect4Game board) {
+  bool isFirstPlayer = true;
+  for (int i = 0; i < 8; i++) {
+    int ft = Random().nextInt(board.width), st = Random().nextInt(board.width);
+    if (ft == st) {
+      continue;
+    }
+    print('i will try swap $ft with $st');
+    board.swapTwoPieces(ft, st); //Random().nextInt(4)+1
+    isFirstPlayer = !isFirstPlayer;
+
+    board.printGridOnConsole();
+    // await Future.delayed(const Duration(seconds: 5));
+  }
+}
+
+class Point {
+  int cl, rw;
+
+  String player;
+
+  Point(this.cl, this.rw, {required this.player});
+}
+
+//----------------------------------
+//-----------------------------
+//----------------------------------
+//---------------------------------
+//----------------------
+//-----------------------------------
+//---------------------------------------
+//---------------------------------
+//---------------------------------
+
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:test_first_flutter_app/connect_n_game/main.dart';
+import 'package:test_first_flutter_app/services/extension.dart';
+
+class WelcomeScreen extends GetView<WelcomeScreenController> {
+  const WelcomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    Get.put(WelcomeScreenController());
+    pickNumberWidget(String label, RxInt num, Function increaseFunction,
+        Function decreaseFunction) {
+      return SizedBox(
+        width: MediaQuery.of(context).size.width * 0.75,
+        child: Column(
+          children: [
+            Text(label),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                MyButtonStyle(decreaseFunction, isAdd: false),
+                SizedBox(
+                  height: test * 1.2,
+                  width: test * 1.85,
+                  child: Container(
+                    decoration: BoxDecoration(
+                        color: Colors.deepPurple.withOpacity(0.8),
+                        borderRadius:
+                            const BorderRadius.all(Radius.circular(12))),
+                    child: Center(
+                        child: Obx(
+                      () => Text(
+                        num.value.toString(),
+                        style: TextStyle(fontSize: test / 3),
+                      ),
+                    )),
+                  ),
+                ),
+                MyButtonStyle(increaseFunction, isAdd: true),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GetMaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          width: MediaQuery.of(context).size.width,
+          child: Column(
+
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              pickNumberWidget("height", controller.h, () {
+                controller.h++;
+              }, () {
+                controller.h--;
+              }),
+              pickNumberWidget("width", controller.w, () {
+                controller.w++;
+              }, () {
+                controller.w--;
+              }),
+              pickNumberWidget("connect to win", controller.n, () {
+                controller.n++;
+              }, () {
+                controller.n--;
+              }),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('play with bot'),
+                  Obx(()=> Checkbox(value: controller.pBot.value, onChanged: (newvalue){controller.pBot.value = newvalue??false;})),
+                ],
+              ),
+              ElevatedButton(
+                  onPressed: () {
+                    Connect4Game gameObject = Connect4Game(controller.w.value,controller.h.value, controller.n.value , playWithBot:  controller.pBot.value, botPlayFirst:  false);
+                    Get.to(PlayScreen(gameObject));
+                  },
+                  child: const Text('PLAY'))
+            ]
+                .map((e) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: e,
+                    ))
+                .toList(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PlayScreen extends GetView<WelcomeScreenController> {
+  const PlayScreen(this.myObject, {super.key});
+
+  final Connect4Game myObject;
+
+  @override
+  Widget build(BuildContext context) {
+    pieceShow(String theChar, row, column) {
+      Color color = Colors.white;
+      if (theChar == ' X ') {
+        color = Colors.red;
+      } else if (theChar == " O ") {
+        color = Colors.blue;
+      }
+      return InkWell(
+        onTap: () {
+          if(myObject.doesItSolved){
+            return ;
+          }
+          if (controller.selectedPieceColumn.value == -1 ) {
+          int test =  myObject.getAppropriateRowIndex(column); //<myObject.height;
+          colorfulPrint(test);
+          try{
+            if(myObject.grid[myObject.getAppropriateRowIndex(column)+1][column] != ' * ') {
+              controller.selectedPieceColumn.value = column;
+            }
+            else{
+              print('you press on empty cell');
+            }
+          }
+          catch(e){
+
+          }
+          } else {
+            try{
+              if( myObject.grid[row][column] == ' * ' ||
+                  myObject.grid[myObject.getAppropriateRowIndex(controller.selectedPieceColumn.value)+1][controller.selectedPieceColumn.value] == ' * ' ||
+              myObject.grid[row][column] == myObject.grid[myObject.getAppropriateRowIndex(controller.selectedPieceColumn.value)+1][controller.selectedPieceColumn.value] ){
+                colorfulPrint('that are unpossible swap');
+                return ;
+              }
+            }
+            catch(e){
+              colorfulPrint('you select empty cell');
+            }
+            controller.helpSaveTimeParameter.value = false;
+            myObject.play(column,
+                increasePieceMode: false,
+                secondPiecesColumn: controller.selectedPieceColumn.value);
+            controller.selectedPieceColumn.value = -1;
+            controller.helpSaveTimeParameter.value = true;
+            controller.solved.value = myObject.doesItSolved;
+          }
+        },
+        child: Obx(
+          () {
+            int maximumRow = myObject.getAppropriateRowIndex(column);
+            return Container(
+            height: 30,
+            width: 30,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              // border: Border.all(
+              //   width: controller.selectedPieceColumn.value == column && row==maximumRow && maximumRow != myObject.height-1 ?  3: 0,
+              //   color: Colors.pink,
+              // ),
+            ),
+              child: controller.selectedPieceColumn.value == column && row==maximumRow+1 && maximumRow != myObject.height-1 ? Icon(
+                Icons.screen_rotation_alt
+              ):null,
+          );
+          },
+        ),
+      );
+    }
+
+    generateMyGridViewBecauseWeAreInSyriaAndTheConnectAreLetch() {
+      List<Widget> columnChildren = [];
+      for (int i = 0; i < myObject.height; i++) {
+        List<Widget> rowChildren = [];
+        for (int j = 0; j < myObject.width; j++) {
+          rowChildren.add(pieceShow(myObject.grid[i][j], i, j));
+        }
+        columnChildren.add(Container(
+            //  color: Colors.red,
+            child: SizedBox(
+          //   height: Get.height*controller.heightFactor,
+          //    width:  Get.width*controller.widthFactor  ,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: rowChildren
+                .map((e) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: e,
+                    ))
+                .toList(),
+          ),
+        )));
+      }
+      return FittedBox(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: columnChildren
+              .map((e) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2.0),
+                    child: e,
+                  ))
+              .toList(),
+        ),
+      );
+    }
+
+    List<Widget> generateInsertButton() {
+      List<Widget> rowChildren = [];
+      for (int i = 0; i < myObject.width; i++) {
+        Color color = myObject.isFirstPlayerTurn ? Colors.red : Colors.blue;
+        rowChildren.add(Center(
+          child: SizedBox(
+            height: test*0.6,
+              width: test*0.6,
+            child: RawMaterialButton(
+              onPressed: () {
+                controller.selectedPieceColumn.value = -1 ;
+                controller.helpSaveTimeParameter.value = false;
+                myObject.play(i);
+                controller.helpSaveTimeParameter.value = true;
+                controller.solved.value = myObject.doesItSolved;
+              },
+              child: CustomPaint(
+                painter: TrianglePainter(
+                  strokeColor: color.withOpacity(0.5),
+                  strokeWidth: 10,
+                  paintingStyle: PaintingStyle.fill,
+                ),
+                child: Container(
+                  height: test,
+                  width: test * 1.2,
+                ),
+              ),
+            ),
+          ),
+        ));
+      }
+      return rowChildren;
+    }
+    return Scaffold(
+      body: Center(
+        child: Row(
+          children: [
+            SizedBox(
+              width: Get.width * 0.03,
+            ),
+            Column(
+              children: [
+                SizedBox(
+                  height: Get.height * 0.08,
+                ),
+                SizedBox(
+                  height: Get.height * 0.7,
+                  width: Get.width * controller.widthFactor,
+                  child: Container(
+                    decoration: BoxDecoration(
+                        color: Colors.deepPurple.withOpacity(0.5),
+                        borderRadius: const BorderRadius.all(Radius.circular(20))),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Obx(() => controller.helpSaveTimeParameter.value
+                          ? generateMyGridViewBecauseWeAreInSyriaAndTheConnectAreLetch()
+                          : Container()),
+                    ),
+                  ),
+                ),
+                Obx(
+                  () => controller.helpSaveTimeParameter.value
+                      ? SizedBox(
+                          height: Get.height * 0.1,
+                          width: Get.width * controller.widthFactor,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: controller.solved.value
+                                ? [
+                                    Text(
+                                        '${myObject.isFirstPlayerTurn ? 'BLUE' : 'RED'} WIN')
+                                  ]
+                                : generateInsertButton(),
+                          ))
+                      : Container(),
+                )
+              ],
+            ),
+            SizedBox(
+              width: Get.width * 0.03,
+            ),
+            ElevatedButton(onPressed: (){
+              int x = myObject.evaluateAGridInOrderToMoveForIt(myObject.grid,' X ');
+              // print(x);
+              // bool result = myObject.isWinByGrid(myObject.grid);
+              // print(result);
+              }, child: Text('evaluate grid'))
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class MyButtonStyle extends StatelessWidget {
+  const MyButtonStyle(this.onPressFunction, {required this.isAdd, super.key});
+
+  final Function onPressFunction;
+
+  final bool isAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onPressFunction(),
+      child: SizedBox(
+        height: test,
+        width: test,
+        child: Container(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.deepPurple,
+          ),
+          child: Padding(
+            padding: EdgeInsets.all(test * 0.15),
+            child: Icon(isAdd ? Icons.add : Icons.remove),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class WelcomeScreenController extends GetxController {
+  RxInt h = 5.obs;
+
+  RxInt w = 7.obs;
+
+  RxInt n = 4.obs;
+
+  RxBool pBot = false.obs ;
+  double widthFactor = 0.6;
+
+  double heightFactor = 0.5;
+
+  RxBool helpSaveTimeParameter = true.obs;
+
+  RxBool solved = false.obs;
+
+  RxInt selectedPieceColumn = (-1).obs;
+}
+
+double test = 60;
+
+class TrianglePainter extends CustomPainter {
+  final Color strokeColor;
+  final PaintingStyle paintingStyle;
+  final double strokeWidth;
+
+  TrianglePainter(
+      {this.strokeColor = Colors.black,
+      this.strokeWidth = 3,
+      this.paintingStyle = PaintingStyle.stroke});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    Paint paint = Paint()
+      ..color = strokeColor
+      ..strokeWidth = strokeWidth
+      ..style = paintingStyle;
+
+    canvas.drawPath(getTrianglePath(size.width, size.height), paint);
+  }
+
+  Path getTrianglePath(double x, double y) {
+    return Path()
+      ..moveTo(0, y)
+      ..lineTo(x / 2, 0)
+      ..lineTo(x, y)
+      ..lineTo(0, y);
+  }
+
+  @override
+  bool shouldRepaint(TrianglePainter oldDelegate) {
+    return oldDelegate.strokeColor != strokeColor ||
+        oldDelegate.paintingStyle != paintingStyle ||
+        oldDelegate.strokeWidth != strokeWidth;
+  }
+}
+
